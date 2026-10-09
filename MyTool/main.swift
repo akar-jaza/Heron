@@ -3,55 +3,65 @@ import Foundation
 enum NetworkResult {
     case success
     case invalidURL
-    case invalidResponse
+    case notHTTP
+    case badStatus(code: Int)
     case failure(withError: Error)
 }
 
-let validURLString = "https://apple.com"
-let invalidURLString = "https://appleeee.com"
+let urls = [
+    "https://jsonplaceholder.typicode.com/posts/1",
+    "https://jsonplaceholder.typicode.com/users/1",
+    "https://jsonplaceholder.typicode.com/todos/1",
+    "https://httpbin.org/get",
+    "https://api.github.com/zen",
+    "https://server12345.invalid",
+    "https://missing-site98765.invalid",
+    "https://fake-api54321.invalid",
+    "https://no-server67890.invalid",
+    "https://unknown-host24680.invalid",
+    "https://httpbin.org/status/404",
+    "",
+]
 
 func makeGetRequest(with urlString: String) async -> NetworkResult {
     
     guard let url = URL(string: urlString) else {
         return NetworkResult.invalidURL
     }
-
-    do {
-        let (_, response) = try await URLSession.shared.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            return NetworkResult.invalidResponse
+        do {
+            let (_, response) = try await URLSession.shared.data(from: url)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return NetworkResult.notHTTP
+            }
+            
+            if (200...299).contains(httpResponse.statusCode) {
+                return NetworkResult.success
+            } else {
+                return NetworkResult.badStatus(code: httpResponse.statusCode)
+            }
+            
+        } catch {
+            return NetworkResult.failure(withError: error)
         }
-        
-        return NetworkResult.success
-    } catch {
-        return NetworkResult.failure(withError: error)
     }
+
+
+for urlString in urls {
+    let requests = await makeGetRequest(with: urlString)
+    
+    switch requests {
+    case .success:
+        print("\(urlString) works ✅")
+    case .failure(let error):
+        print("❌ \(urlString): \(error.localizedDescription)")
+    case .notHTTP:
+        print("Not a valid HTTP \(urlString)")
+    case .badStatus(let code):
+        print("❌ bad status for \(urlString): \(code)")
+    case .invalidURL:
+        print("❌ \(urlString): Invalid URL")
+    }
+    
+
 }
-
-let request1 = await makeGetRequest(with: validURLString)
-let request2 = await makeGetRequest(with: invalidURLString)
-
-print(request1)
-print(request2)
-
-
-/**
- URLSession.shared.dataTask(with: url) {data, response, error in
- if let error = error {
- print("Error: \(error.localizedDescription)")
- return
- }
- 
- guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
- print("Invalid Reponse")
- return
- }
- 
- guard data != nil else {
- print("invalid data")
- return
- }
- }.resume()
- */
-
