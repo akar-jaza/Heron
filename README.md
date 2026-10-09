@@ -1,5 +1,5 @@
 <p align="center">
-<img width="794" height="845" alt="Minimalist Blue Heron App Icon" src="https://github.com/user-attachments/assets/b6216dd6-cead-4e5c-b0f2-cfb1899131a4" />
+<img width="500" height="500" alt="Minimalist Blue Heron App Icon" src="https://github.com/user-attachments/assets/b6216dd6-cead-4e5c-b0f2-cfb1899131a4" />
 </p>
 
 # Heron
