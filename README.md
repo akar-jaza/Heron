@@ -33,8 +33,8 @@ Checking links is slow, because every link needs a network request. Checking the
 
 - [x] Check one link with `URLSession` and `async/await`
 - [x] Return a result enum instead of printing
-- [ ] Check several links one by one in a loop
-- [ ] Check links at the same time with `TaskGroup`
+- [x] Check several links one by one in a loop
+- [⏳] Check links at the same time with `TaskGroup`
 - [ ] Limit how many checks run at once
 - [ ] Use an `actor` to skip links that were already checked
 - [ ] Add timeouts and clean cancellation (Ctrl+C)
