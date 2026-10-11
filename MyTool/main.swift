@@ -24,9 +24,9 @@ let urls = [
     "",
 ]
 
-struct URLChecker{
+struct URLChecker {
     
-    func makeRequestWithoutTaskGroup(with urlString: String) async -> NetworkResult {
+    func checkLink(with urlString: String) async -> NetworkResult {
         
         guard let url = URL(string: urlString) else {
             return NetworkResult.invalidURL
@@ -51,49 +51,69 @@ struct URLChecker{
     }
     
     
-    func checkingWithTaskGroup(urls: [String]) async -> [(String, NetworkResult)] {
+    func checkAll(urls: [String]) async -> [(String, NetworkResult)] {
+        let maxHelpers: Int =  2
+        var results: [(String, NetworkResult)] = []
+        
         await withTaskGroup(of: (String, NetworkResult).self) { group in
+            var next: Int = 0
             
-            for urlString in urls {
-                group.addTask {
-                    let result = await self.makeRequestWithoutTaskGroup(with: urlString)
-                    return (urlString, result)
+            while next < maxHelpers && next < urls.count {
+                let url = urls[next]
+                group
+                    .addTask {
+                        let result = await self.checkLink(
+                            with: url
+                        )
+                        return (url, result)
+                    }
+                next += 1
+            }
+            
+            for await requestResult in group {
+                results.append(requestResult)
+                if next < urls.count {
+                    let url = urls[next]
+                    group
+                        .addTask {
+                            let result = await self.checkLink(
+                                with: url
+                            )
+                            return (url, result)
+                        }
+                    next += 1
                 }
             }
-            
-            var results: [(String, NetworkResult)] = []
-            
-            for await item in group {
-                results.append(item)
-            }
-            
-            return results
-            
         }
+        return results
     }
 }
 
 
-func runUrlCheckerWithoutTaskGroup() async {
+fileprivate func printRequestResult(_ requests: NetworkResult, _ urlString: String) {
+    switch requests {
+    case .success:
+        print("\(urlString) works ✅")
+    case .failure(let error):
+        print("❌ \(urlString): \(error.localizedDescription)")
+    case .notHTTP:
+        print("Not a valid HTTP \(urlString)")
+    case .badStatus(let code):
+        print("❌ bad status for \(urlString): \(code)")
+    case .invalidURL:
+        print("❌ \(urlString): Invalid URL")
+    }
+}
+
+func runOneByOne() async {
     let checker = URLChecker()
     let start = Date()
     
     for urlString in urls {
         
-        let requests = await checker.makeRequestWithoutTaskGroup(with: urlString)
+        let result = await checker.checkLink(with: urlString)
         
-        switch requests {
-        case .success:
-            print("\(urlString) works ✅")
-        case .failure(let error):
-            print("❌ \(urlString): \(error.localizedDescription)")
-        case .notHTTP:
-            print("Not a valid HTTP \(urlString)")
-        case .badStatus(let code):
-            print("❌ bad status for \(urlString): \(code)")
-        case .invalidURL:
-            print("❌ \(urlString): Invalid URL")
-        }
+        printRequestResult(result, urlString)
     }
     
     print("Took \(Date().timeIntervalSince(start)) seconds")
@@ -101,29 +121,19 @@ func runUrlCheckerWithoutTaskGroup() async {
 
 //await runUrlCheckerWithoutTaskGroup()
 
-func runUrlCheckerWithTaskGroup() async {
+func runConcurrently() async {
     let checker = URLChecker()
     let start = Date()
     
-    let results = await checker.checkingWithTaskGroup(urls: urls)
+    let results = await checker.checkAll(urls: urls)
     
     for (urlString, result) in results {
-        switch result {
-        case .success:
-            print("\(urlString) works ✅")
-        case .failure(let error):
-            print("❌ \(urlString): \(error.localizedDescription)")
-        case .notHTTP:
-            print("Not a valid HTTP \(urlString)")
-        case .badStatus(let code):
-            print("❌ bad status for \(urlString): \(code)")
-        case .invalidURL:
-            print("❌ \(urlString): Invalid URL")
-        }
+        printRequestResult(result, urlString)
     }
     
     print("Took \(Date().timeIntervalSince(start)) seconds")
     
 }
 
-await runUrlCheckerWithTaskGroup()
+await runConcurrently()
+
