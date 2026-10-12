@@ -5,6 +5,7 @@ enum NetworkResult {
     case invalidURL
     case duplicateURL
     case notHTTP
+    case timedOut
     case badStatus(code: Int)
     case failure(withError: Error)
 }
@@ -13,6 +14,7 @@ let urls = [
     "https://jsonplaceholder.typicode.com/posts/1",
     "https://jsonplaceholder.typicode.com/users/1",
     "https://jsonplaceholder.typicode.com/todos/1",
+    "https://httpbin.org/delay/10",
     "https://httpbin.org/get",
     "https://httpbin.org/get",
     "https://httpbin.org/get",
@@ -38,13 +40,16 @@ actor VisitedLinks {
 struct URLChecker {
     
     func checkLink(with urlString: String) async -> NetworkResult {
+        let timeout: TimeInterval = 3
         
         guard let url = URL(string: urlString) else {
             return NetworkResult.invalidURL
         }
         
+        let urlRequest = URLRequest(url: url, timeoutInterval: timeout)
+        
         do {
-            let (_, response) = try await URLSession.shared.data(from: url)
+            let (_, response) = try await URLSession.shared.data(for: urlRequest)
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 return NetworkResult.notHTTP
@@ -56,6 +61,11 @@ struct URLChecker {
                 return NetworkResult.badStatus(code: httpResponse.statusCode)
             }
         } catch {
+            if let urlError = error as? URLError,
+               urlError.code == .timedOut {
+                return NetworkResult.timedOut
+            }
+            
             return NetworkResult.failure(withError: error)
         }
         
@@ -72,7 +82,7 @@ struct URLChecker {
             
             while next < maxHelpers && next < urls.count {
                 let url = urls[next]
-                addTaskGroup(&group, url, visited: visited)
+                startCheck(&group, url, visited: visited)
                 next += 1
             }
             
@@ -80,7 +90,7 @@ struct URLChecker {
                 results.append(requestResult)
                 if next < urls.count {
                     let url = urls[next]
-                    addTaskGroup(&group, url, visited: visited)
+                    startCheck(&group, url, visited: visited)
                     next += 1
                 }
             }
@@ -88,7 +98,7 @@ struct URLChecker {
         return results
     }
     
-    fileprivate func addTaskGroup(
+    private func startCheck(
         _ group: inout TaskGroup<(String, NetworkResult)>,
         _ url: String,
         visited: VisitedLinks
@@ -108,7 +118,7 @@ struct URLChecker {
 }
 
 
-fileprivate func printRequestResult(
+private func printRequestResult(
     _ result: NetworkResult,
     _ urlString: String
 ) {
@@ -122,6 +132,7 @@ fileprivate func printRequestResult(
         """)
         
     case .failure(let error):
+        
         print("""
         
         ❌ REQUEST FAILED
@@ -160,7 +171,18 @@ fileprivate func printRequestResult(
         URL: \(urlString)
         Reason: This URL has already been processed.
         """)
+        
+        
+    case .timedOut:
+        print("""
+    
+    ⏱️ REQUEST TIMED OUT
+    URL: \(urlString)
+    Reason: The request took too long to complete.
+    """)
     }
+    
+    
 }
 
 func runOneByOne() async {
