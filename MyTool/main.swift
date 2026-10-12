@@ -3,6 +3,7 @@ import Foundation
 enum NetworkResult {
     case success
     case invalidURL
+    case duplicateURL
     case notHTTP
     case badStatus(code: Int)
     case failure(withError: Error)
@@ -12,6 +13,8 @@ let urls = [
     "https://jsonplaceholder.typicode.com/posts/1",
     "https://jsonplaceholder.typicode.com/users/1",
     "https://jsonplaceholder.typicode.com/todos/1",
+    "https://httpbin.org/get",
+    "https://httpbin.org/get",
     "https://httpbin.org/get",
     "https://api.github.com/zen",
     "https://server12345.invalid",
@@ -23,6 +26,14 @@ let urls = [
     "file:///etc/hosts",
     "",
 ]
+
+actor VisitedLinks {
+    private var seen: Set<String> = []
+    
+    func markIfNew(_ link: String) -> Bool {
+        seen.insert(link).inserted
+    }
+}
 
 struct URLChecker {
     
@@ -52,6 +63,7 @@ struct URLChecker {
     
     
     func checkAll(urls: [String]) async -> [(String, NetworkResult)] {
+        let visited = VisitedLinks()
         let maxHelpers: Int =  2
         var results: [(String, NetworkResult)] = []
         
@@ -60,13 +72,7 @@ struct URLChecker {
             
             while next < maxHelpers && next < urls.count {
                 let url = urls[next]
-                group
-                    .addTask {
-                        let result = await self.checkLink(
-                            with: url
-                        )
-                        return (url, result)
-                    }
+                addTaskGroup(&group, url, visited: visited)
                 next += 1
             }
             
@@ -74,34 +80,86 @@ struct URLChecker {
                 results.append(requestResult)
                 if next < urls.count {
                     let url = urls[next]
-                    group
-                        .addTask {
-                            let result = await self.checkLink(
-                                with: url
-                            )
-                            return (url, result)
-                        }
+                    addTaskGroup(&group, url, visited: visited)
                     next += 1
                 }
             }
         }
         return results
     }
+    
+    fileprivate func addTaskGroup(
+        _ group: inout TaskGroup<(String, NetworkResult)>,
+        _ url: String,
+        visited: VisitedLinks
+    ) {
+        
+        group.addTask {
+            let isNew = await visited.markIfNew(url)
+            
+            if !isNew {
+                return (url, NetworkResult.duplicateURL)
+            }
+            
+            let result = await checkLink(with: url)
+            return (url, result)
+        }
+    }
 }
 
 
-fileprivate func printRequestResult(_ requests: NetworkResult, _ urlString: String) {
-    switch requests {
+fileprivate func printRequestResult(
+    _ result: NetworkResult,
+    _ urlString: String
+) {
+    switch result {
+        
     case .success:
-        print("\(urlString) works ✅")
+        print("""
+        
+        ✅ REQUEST SUCCEEDED
+        URL: \(urlString)
+        """)
+        
     case .failure(let error):
-        print("❌ \(urlString): \(error.localizedDescription)")
+        print("""
+        
+        ❌ REQUEST FAILED
+        URL: \(urlString)
+        Reason: \(error.localizedDescription)
+        """)
+        
     case .notHTTP:
-        print("Not a valid HTTP \(urlString)")
+        print("""
+        
+        ❌ INVALID RESPONSE TYPE
+        URL: \(urlString)
+        Reason: The response is not an HTTP response.
+        """)
+        
     case .badStatus(let code):
-        print("❌ bad status for \(urlString): \(code)")
+        print("""
+        
+        ⚠️ HTTP ERROR
+        URL: \(urlString)
+        Status Code: \(code)
+        """)
+        
     case .invalidURL:
-        print("❌ \(urlString): Invalid URL")
+        print("""
+        
+        ❌ INVALID URL
+        URL: \(urlString)
+        Reason: The URL string is invalid.
+        """)
+        
+    case .duplicateURL:
+        print("""
+        
+        ⏭️ DUPLICATE URL SKIPPED
+        URL: \(urlString)
+        Reason: This URL has already been processed.
+        """)
     }
 }
 
@@ -119,7 +177,6 @@ func runOneByOne() async {
     print("Took \(Date().timeIntervalSince(start)) seconds")
 }
 
-//await runUrlCheckerWithoutTaskGroup()
 
 func runConcurrently() async {
     let checker = URLChecker()

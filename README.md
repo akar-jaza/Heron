@@ -35,8 +35,8 @@ Checking links is slow, because every link needs a network request. Checking the
 - [x] Return a result enum instead of printing
 - [x] Check several links one by one in a loop
 - [x] Check links at the same time with `TaskGroup`
-- [ ] Limit how many checks run at once
-- [ ] Use an `actor` to skip links that were already checked
+- [x] Limit how many checks run at once
+- [x] Use an `actor` to skip links that were already checked
 - [ ] Add timeouts and clean cancellation (Ctrl+C)
 - [ ] Read links from a file
 - [ ] Add a real command-line interface with Swift Argument Parser
