@@ -40,6 +40,7 @@ Checking links is slow, because every link needs a network request. Checking the
 - [x] Add timeouts and clean cancellation (Ctrl+C)
 - [ ] Read links from a file
 - [ ] Add a real command-line interface with Swift Argument Parser
+- [ ] Add nice animations
 
 ## Requirements
 

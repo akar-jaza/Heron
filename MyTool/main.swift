@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 enum NetworkResult {
     case success
@@ -212,14 +213,32 @@ func runConcurrently() async {
     let checker = URLChecker()
     let start = Date()
     
+    let spinner = Task {
+        let frames = ["|", "/", "-", "\\"]
+        var index = 0
+        
+        while !Task.isCancelled {
+            print("\rChecking URLs... \(frames[index])", terminator: "")
+            fflush(stdout)
+            
+            index = (index + 1) % frames.count
+            
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+    
     let results = await checker.checkAll(urls: urls)
+    
+    spinner.cancel()
+    await spinner.value
+    
+    print("\rChecking URLs... done!")
     
     for (urlString, result) in results {
         printRequestResult(result, urlString)
     }
     
     print("Took \(Date().timeIntervalSince(start)) seconds")
-    
 }
 
 
