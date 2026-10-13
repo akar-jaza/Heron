@@ -6,6 +6,7 @@ enum NetworkResult {
     case duplicateURL
     case notHTTP
     case timedOut
+    case cancelled
     case badStatus(code: Int)
     case failure(withError: Error)
 }
@@ -61,6 +62,10 @@ struct URLChecker {
                 return NetworkResult.badStatus(code: httpResponse.statusCode)
             }
         } catch {
+            if Task.isCancelled {
+                return NetworkResult.cancelled
+            }
+            
             if let urlError = error as? URLError,
                urlError.code == .timedOut {
                 return NetworkResult.timedOut
@@ -88,7 +93,7 @@ struct URLChecker {
             
             for await requestResult in group {
                 results.append(requestResult)
-                if next < urls.count {
+                if next < urls.count && !Task.isCancelled {
                     let url = urls[next]
                     startCheck(&group, url, visited: visited)
                     next += 1
@@ -180,6 +185,9 @@ private func printRequestResult(
     URL: \(urlString)
     Reason: The request took too long to complete.
     """)
+        
+    case .cancelled:
+        print("🛑 REQUEST STOPPED FOR: \(urlString)")
     }
     
     
@@ -214,5 +222,23 @@ func runConcurrently() async {
     
 }
 
-await runConcurrently()
+
+let mainTask = Task {
+    await runConcurrently()
+}
+
+signal(SIGINT, SIG_IGN)
+
+let listener = DispatchSource.makeSignalSource(
+    signal: SIGINT,
+    queue: .main
+)
+
+listener.setEventHandler {
+    mainTask.cancel()
+}
+
+listener.resume()
+
+await mainTask.value
 
