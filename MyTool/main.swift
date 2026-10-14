@@ -32,10 +32,23 @@ let urls = [
 ]
 
 actor VisitedLinks {
+    private var activeURLs: [String] = []
     private var seen: Set<String> = []
     
-    func markIfNew(_ link: String) -> Bool {
-        seen.insert(link).inserted
+    func startChecking(_ url: String) {
+        activeURLs.append(url)
+    }
+    
+    func finishChecking(_ url: String) {
+        activeURLs.removeAll { $0 == url }
+    }
+    
+    func getActiveURLs() -> [String] {
+        return activeURLs
+    }
+    
+    func markIfNew(_ url: String) -> Bool {
+        seen.insert(url).inserted
     }
 }
 
@@ -43,7 +56,7 @@ struct URLChecker {
     
     func checkLink(with urlString: String) async -> NetworkResult {
         let timeout: TimeInterval = 3
-        
+                
         guard let url = URL(string: urlString) else {
             return NetworkResult.invalidURL
         }
@@ -78,8 +91,7 @@ struct URLChecker {
     }
     
     
-    func checkAll(urls: [String]) async -> [(String, NetworkResult)] {
-        let visited = VisitedLinks()
+    func checkAll(urls: [String], visited: VisitedLinks) async -> [(String, NetworkResult)] {
         let maxHelpers: Int =  2
         var results: [(String, NetworkResult)] = []
         
@@ -116,8 +128,10 @@ struct URLChecker {
             if !isNew {
                 return (url, NetworkResult.duplicateURL)
             }
-            
+            await visited.startChecking(url)
             let result = await checkLink(with: url)
+            await visited.finishChecking(url)
+            
             return (url, result)
         }
     }
@@ -212,13 +226,19 @@ func runOneByOne() async {
 func runConcurrently() async {
     let checker = URLChecker()
     let start = Date()
+    let visited = VisitedLinks()
     
     let spinner = Task {
         let frames = ["|", "/", "-", "\\"]
         var index = 0
         
         while !Task.isCancelled {
-            print("\rChecking URLs... \(frames[index])", terminator: "")
+            let activeURLs = await visited.getActiveURLs()
+            let display = activeURLs.isEmpty
+            ? "No active URLs"
+            : activeURLs.joined(separator: " | ")
+            
+            print("\r\(frames[index]) Checking: \(display)\u{1B}[K", terminator: "")
             fflush(stdout)
             
             index = (index + 1) % frames.count
@@ -227,7 +247,7 @@ func runConcurrently() async {
         }
     }
     
-    let results = await checker.checkAll(urls: urls)
+    let results = await checker.checkAll(urls: urls, visited: visited)
     
     spinner.cancel()
     await spinner.value
@@ -237,8 +257,9 @@ func runConcurrently() async {
     for (urlString, result) in results {
         printRequestResult(result, urlString)
     }
-    
-    print("Took \(Date().timeIntervalSince(start)) seconds")
+    print("---------")
+    print("")
+    print("⏰ Took \(Date().timeIntervalSince(start)) seconds")
 }
 
 
