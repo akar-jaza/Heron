@@ -12,24 +12,7 @@ enum NetworkResult {
     case failure(withError: Error)
 }
 
-let urls = [
-    "https://jsonplaceholder.typicode.com/posts/1",
-    "https://jsonplaceholder.typicode.com/users/1",
-    "https://jsonplaceholder.typicode.com/todos/1",
-    "https://httpbin.org/delay/10",
-    "https://httpbin.org/get",
-    "https://httpbin.org/get",
-    "https://httpbin.org/get",
-    "https://api.github.com/zen",
-    "https://server12345.invalid",
-    "https://missing-site98765.invalid",
-    "https://fake-api54321.invalid",
-    "https://no-server67890.invalid",
-    "https://unknown-host24680.invalid",
-    "https://httpbin.org/status/404",
-    "file:///etc/hosts",
-    "",
-]
+var urls: [String] = []
 
 actor VisitedLinks {
     private var activeURLs: [String] = []
@@ -212,7 +195,7 @@ func runOneByOne() async {
     let checker = URLChecker()
     let start = Date()
     
-    for urlString in urls {
+    for urlString in await urls {
         
         let result = await checker.checkLink(with: urlString)
         
@@ -223,9 +206,9 @@ func runOneByOne() async {
 }
 
 
-func runConcurrently() async {
+func runConcurrently(url: String) async {
     let checker = URLChecker()
-    let start = Date()
+//    let start = Date()
     let visited = VisitedLinks()
     
     let spinner = Task {
@@ -236,9 +219,14 @@ func runConcurrently() async {
             let activeURLs = await visited.getActiveURLs()
             let display = activeURLs.isEmpty
             ? "No active URLs"
-            : activeURLs.joined(separator: " | ")
+            : activeURLs.joined(separator: " \u{1B}[36m|\u{1B}[32m ")
             
-            print("\r\(frames[index]) Checking: \(display)\u{1B}[K", terminator: "")
+            print(
+                "\r\u{1B}[33m\(frames[index])\u{1B}[0m " +
+                "\u{1B}[36mChecking:\u{1B}[0m " +
+                "\u{1B}[32m\(display)\u{1B}[0m\u{1B}[K",
+                terminator: ""
+            )
             fflush(stdout)
             
             index = (index + 1) % frames.count
@@ -251,34 +239,105 @@ func runConcurrently() async {
     
     spinner.cancel()
     await spinner.value
-    
-    print("\rChecking URLs... done!")
-    
+    print("\r\u{1B}[2K", terminator: "")
+        
     for (urlString, result) in results {
         printRequestResult(result, urlString)
+//        try? await Task.sleep(for: .milliseconds(100))
+
     }
-    print("---------")
+    
+//    print("")
+//    print("⏰ Took \(Date().timeIntervalSince(start)) seconds")
+}
+
+Banner.show()
+
+func correctURL(_ url: String) -> String {
+    if url.hasPrefix("https://") || url.hasPrefix("http://") {
+        return url
+    }
+    
+    return "https://" + url
+}
+
+let choice = Menu.choose("What do you want to do?", options: [
+    "A  Write down a URL to check",
+    "B  Read URLs from a file"
+])
+
+switch choice {
+case 0:
     print("")
-    print("⏰ Took \(Date().timeIntervalSince(start)) seconds")
+    Menu.prompt("Enter URL")
+    let url = readLine()!
+    
+    let correctedURL = correctURL(url)
+    
+    urls.append(correctedURL)
+
+    let mainTask = Task {
+        await runConcurrently(url: urls.first ?? "")
+    }
+    
+    signal(SIGINT, SIG_IGN)
+    
+    let listener = DispatchSource.makeSignalSource(
+        signal: SIGINT,
+        queue: .main
+    )
+    
+    listener.setEventHandler {
+        mainTask.cancel()
+    }
+    
+    listener.resume()
+    
+    await mainTask.value
+    
+    urls.removeAll()
+    
+case 1:
+    print("")
+    Menu.prompt("Paste the File Path")
+    
+    if let path = readLine() {
+        let cleanedPath = path
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\ ", with: " ")
+        
+        let filePath = (cleanedPath as NSString).expandingTildeInPath
+        
+        do {
+            let contents = try String(
+                contentsOfFile: filePath,
+                encoding: .utf8
+            )
+            
+            urls = contents
+                .split(separator: ",")
+                .map {
+                    $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                .filter {
+                    !$0.isEmpty
+                }
+            
+            print("")
+            print("\u{1B}[36mLoaded \(urls.count) URLs.\u{1B}[0m")
+            print("-----")
+                        
+            
+            await runConcurrently(url: urls.first ?? "")
+            
+        } catch {
+            print("Couldn't read file: \(error.localizedDescription)")
+        }
+    }
+default:
+    break
 }
 
 
-let mainTask = Task {
-    await runConcurrently()
-}
 
-signal(SIGINT, SIG_IGN)
-
-let listener = DispatchSource.makeSignalSource(
-    signal: SIGINT,
-    queue: .main
-)
-
-listener.setEventHandler {
-    mainTask.cancel()
-}
-
-listener.resume()
-
-await mainTask.value
 
