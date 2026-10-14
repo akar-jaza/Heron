@@ -38,9 +38,9 @@ Checking links is slow, because every link needs a network request. Checking the
 - [x] Limit how many checks run at once
 - [x] Use an `actor` to skip links that were already checked
 - [x] Add timeouts and clean cancellation (Ctrl+C)
-- [ ] Read links from a file
-- [ ] Add a real command-line interface with Swift Argument Parser
-- [ ] Add nice animations
+- [x] Read links from a file
+- [x] Add a real command-line interface with Swift Argument Parser
+- [x] Add nice animations
 
 ## Requirements
 
@@ -49,11 +49,23 @@ Checking links is slow, because every link needs a network request. Checking the
 
 ## Running it
 
-1. Clone the repo
-2. Open the project in Xcode
-3. Press **Run** (⌘R)
+### Option 1: Terminal
 
+1. Clone the repository.
+2. Open Terminal in the project directory.
+3. Compile and run Heron:
 
+   ```bash
+   swiftc main.swift Banner.swift Menu.swift -o heron
+   ./heron
+
+**Small note:** If you wanna use Terminal, make sure you're in the folder with the 3 Swift files. If you wanna use Xcode, make sure there's an Xcode project to open!
+
+### Option 2: Terminal
+
+1. Clone the repository.
+2. Open the project in Xcode.
+3. Press Run (⌘R).
 
 ## License
 
