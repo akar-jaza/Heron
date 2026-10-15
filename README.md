@@ -4,11 +4,8 @@
 
 # Heron
 
-A command-line tool that checks links and tells you which ones are broken.
-
-Give it a list of URLs, and it reports which links work and which ones don't, and why.
-
-> 🚧 **Work in progress.** This is a learning project. I'm building it step by step to get better at Swift, especially **Swift Concurrency**.
+Heron is a command-line URL checker built with Swift. It checks multiple links concurrently and reports HTTP status codes and connection errors.
+Built as a practical exploration of Swift Concurrency, including async/await, task groups, actors, and asynchronous streams.y**.
 
 ## What it will do
 
@@ -31,16 +28,11 @@ Checking links is slow, because every link needs a network request. Checking the
 
 ## Roadmap
 
-- [x] Check one link with `URLSession` and `async/await`
-- [x] Return a result enum instead of printing
-- [x] Check several links one by one in a loop
-- [x] Check links at the same time with `TaskGroup`
-- [x] Limit how many checks run at once
-- [x] Use an `actor` to skip links that were already checked
-- [x] Add timeouts and clean cancellation (Ctrl+C)
 - [x] Read links from a file
 - [x] Add a real command-line interface with Swift Argument Parser
-- [x] Add nice animations
+- [ ] Package and simplify installation
+- [ ] Publish a versioned release for easier distribution
+- [ ] Continue improving error handling and usability
 
 ## Requirements
 
